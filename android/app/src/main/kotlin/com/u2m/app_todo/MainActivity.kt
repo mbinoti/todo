@@ -1,0 +1,5 @@
+package com.u2m.app_todo
+
+import io.flutter.embedding.android.FlutterActivity
+
+class MainActivity : FlutterActivity()
