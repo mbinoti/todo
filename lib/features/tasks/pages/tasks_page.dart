@@ -1,11 +1,14 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
-import 'new_task_page.dart';
-import 'profile_page.dart';
-import 'task_details_page.dart';
-import 'task_item.dart';
+import 'package:app_todo/features/tasks/models/task_item.dart';
+import 'package:app_todo/features/tasks/pages/new_task_page.dart';
+import 'package:app_todo/features/tasks/pages/profile_page.dart';
+import 'package:app_todo/features/tasks/pages/task_details_page.dart';
+import 'package:app_todo/features/tasks/view_model/profile_model.dart';
+import 'package:app_todo/features/tasks/view_model/tasks_model.dart';
 
 class TasksPage extends StatefulWidget {
   const TasksPage({super.key});
@@ -23,51 +26,13 @@ class TasksPage extends StatefulWidget {
 }
 
 class _TasksPageState extends State<TasksPage> {
-  late final List<TaskItem> _pendingTasks;
-  late final List<TaskItem> _completedTasks;
-
-  @override
-  void initState() {
-    super.initState();
-    final baseDate = DateTime(2024, 12, 25, 16, 0);
-    _pendingTasks = [
-      TaskItem(
-        title: 'Finalizar apresentação do projeto',
-        subtitle:
-            'Preparar slides e revisar conteúdo para a reunião de quinta-feira',
-        completed: false,
-        createdAt: baseDate,
-      ),
-      TaskItem(
-        title: 'Comprar presentes de Natal',
-        subtitle: 'Lista: livro para Maria, fone para João, jogo para Pedro',
-        completed: false,
-        createdAt: baseDate,
-      ),
-      TaskItem(
-        title: 'Revisar código do app mobile',
-        subtitle: 'Fazer code review do PR #142 e testar funcionalidades',
-        completed: false,
-        createdAt: baseDate,
-      ),
-    ];
-    _completedTasks = [
-      TaskItem(
-        title: 'Academia — treino de pernas',
-        completed: true,
-        createdAt: baseDate,
-      ),
-      TaskItem(
-        title: 'Agendar consulta médica',
-        completed: true,
-        createdAt: baseDate,
-      ),
-    ];
-  }
-
   @override
   Widget build(BuildContext context) {
     final isIOS = defaultTargetPlatform == TargetPlatform.iOS;
+    final profile = context.watch<ProfileModel>();
+    final tasksModel = context.watch<TasksModel>();
+    final pendingTasks = tasksModel.pendingTasks;
+    final completedTasks = tasksModel.completedTasks;
     if (isIOS) {
       return CupertinoPageScaffold(
         backgroundColor: TasksPage._backgroundColor,
@@ -76,6 +41,10 @@ class _TasksPageState extends State<TasksPage> {
             bottom: BorderSide(color: TasksPage._cardBorderColor, width: 0.6),
           ),
           backgroundColor: Colors.white,
+          leading: Padding(
+            padding: const EdgeInsets.only(left: 8),
+            child: _buildAvatar(profile),
+          ),
           middle: const Text(
             'Minhas Tarefas',
             style: TextStyle(
@@ -96,11 +65,11 @@ class _TasksPageState extends State<TasksPage> {
         ),
         child: _TasksBody(
           isIOS: true,
-          pendingTasks: _pendingTasks,
-          completedTasks: _completedTasks,
+          pendingTasks: pendingTasks,
+          completedTasks: completedTasks,
           onCreateTask: () => _openNewTask(context),
-          onOpenDetails: _openDetails,
-          onToggleComplete: _markCompleted,
+          onOpenDetails: (task) => _openDetails(context, task),
+          onToggleComplete: (task) => _toggleCompleted(context, task),
         ),
       );
     }
@@ -113,6 +82,10 @@ class _TasksPageState extends State<TasksPage> {
         scrolledUnderElevation: 0,
         centerTitle: true,
         automaticallyImplyLeading: false,
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 12),
+          child: _buildAvatar(profile),
+        ),
         title: const Text(
           'Minhas Tarefas',
           style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
@@ -130,11 +103,11 @@ class _TasksPageState extends State<TasksPage> {
       ),
       body: _TasksBody(
         isIOS: false,
-        pendingTasks: _pendingTasks,
-        completedTasks: _completedTasks,
+        pendingTasks: pendingTasks,
+        completedTasks: completedTasks,
         onCreateTask: () => _openNewTask(context),
-        onOpenDetails: _openDetails,
-        onToggleComplete: _markCompleted,
+        onOpenDetails: (task) => _openDetails(context, task),
+        onToggleComplete: (task) => _toggleCompleted(context, task),
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _openNewTask(context),
@@ -153,11 +126,46 @@ class _TasksPageState extends State<TasksPage> {
     Navigator.of(context).push(route);
   }
 
-  Future<void> _openDetails(int index) async {
-    if (index >= _pendingTasks.length) {
-      return;
+  Widget _buildAvatar(ProfileModel profile) {
+    const size = 32.0;
+    final imageUrl = profile.photoUrl?.trim();
+    final hasImage = imageUrl != null && imageUrl.isNotEmpty;
+    final initial = _initialForName(profile.name);
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: TasksPage._accentGreen,
+        image: hasImage
+            ? DecorationImage(
+                image: NetworkImage(imageUrl!),
+                fit: BoxFit.cover,
+              )
+            : null,
+      ),
+      alignment: Alignment.center,
+      child: hasImage
+          ? null
+          : Text(
+              initial,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+    );
+  }
+
+  String _initialForName(String name) {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) {
+      return 'U';
     }
-    final task = _pendingTasks[index];
+    return trimmed.substring(0, 1).toUpperCase();
+  }
+
+  Future<void> _openDetails(BuildContext context, TaskItem task) async {
     final isIOS = defaultTargetPlatform == TargetPlatform.iOS;
     final route = isIOS
         ? CupertinoPageRoute<TaskDetailsResult?>(
@@ -170,59 +178,49 @@ class _TasksPageState extends State<TasksPage> {
     if (!mounted || result == null) {
       return;
     }
-    var taskIndex = index;
-    if (taskIndex >= _pendingTasks.length ||
-        !identical(_pendingTasks[taskIndex], task)) {
-      taskIndex = _pendingTasks.indexWhere((item) => identical(item, task));
-    }
-    if (taskIndex == -1) {
-      return;
-    }
+    final tasksModel = context.read<TasksModel>();
     if (result.action == TaskDetailsAction.deleted) {
-      setState(() {
-        if (taskIndex < _pendingTasks.length) {
-          _pendingTasks.removeAt(taskIndex);
-        }
-      });
-      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-        const SnackBar(content: Text('Tarefa excluída.')),
-      );
+      await tasksModel.deleteTask(task);
+      if (tasksModel.errorMessage != null) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          SnackBar(content: Text(tasksModel.errorMessage!)),
+        );
+      } else {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          const SnackBar(content: Text('Tarefa excluída.')),
+        );
+      }
       return;
     }
     if (result.action == TaskDetailsAction.updated && result.task != null) {
-      setState(() {
-        if (taskIndex < _pendingTasks.length) {
-          _pendingTasks[taskIndex] = result.task!;
-        }
-      });
-      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-        const SnackBar(content: Text('Tarefa atualizada.')),
-      );
+      await tasksModel.updateTask(result.task!);
+      if (tasksModel.errorMessage != null) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          SnackBar(content: Text(tasksModel.errorMessage!)),
+        );
+      } else {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          const SnackBar(content: Text('Tarefa atualizada.')),
+        );
+      }
     }
   }
 
-  void _markCompleted(int index) {
-    setState(() {
-      if (index >= _pendingTasks.length) {
-        return;
-      }
-      final task = _pendingTasks.removeAt(index);
-      _completedTasks.insert(0, task.copyWith(completed: true));
-    });
+  void _toggleCompleted(BuildContext context, TaskItem task) {
+    context.read<TasksModel>().toggleCompletion(task);
   }
 
   Future<void> _openNewTask(BuildContext context) async {
     final isIOS = defaultTargetPlatform == TargetPlatform.iOS;
     final route = isIOS
-        ? CupertinoPageRoute<TaskItem?>(builder: (_) => const NewTaskPage())
-        : MaterialPageRoute<TaskItem?>(builder: (_) => const NewTaskPage());
-    final newTask = await Navigator.of(context).push<TaskItem?>(route);
-    if (newTask == null) {
-      return;
+        ? CupertinoPageRoute<bool?>(builder: (_) => const NewTaskPage())
+        : MaterialPageRoute<bool?>(builder: (_) => const NewTaskPage());
+    final created = await Navigator.of(context).push<bool?>(route);
+    if (created == true && mounted) {
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        const SnackBar(content: Text('Tarefa criada.')),
+      );
     }
-    setState(() {
-      _pendingTasks.insert(0, newTask);
-    });
   }
 }
 
@@ -240,8 +238,8 @@ class _TasksBody extends StatelessWidget {
   final List<TaskItem> pendingTasks;
   final List<TaskItem> completedTasks;
   final VoidCallback onCreateTask;
-  final ValueChanged<int> onOpenDetails;
-  final ValueChanged<int> onToggleComplete;
+  final ValueChanged<TaskItem> onOpenDetails;
+  final ValueChanged<TaskItem> onToggleComplete;
 
   static const Color _accentGreen = TasksPage._accentGreen;
   static const Color _titleColor = TasksPage._titleColor;
@@ -271,8 +269,8 @@ class _TasksBody extends StatelessWidget {
           for (var i = 0; i < pendingTasks.length; i++)
             _buildCard(
               pendingTasks[i],
-              onTap: () => onOpenDetails(i),
-              onToggleComplete: () => onToggleComplete(i),
+              onTap: () => onOpenDetails(pendingTasks[i]),
+              onToggleComplete: () => onToggleComplete(pendingTasks[i]),
             ),
           const SizedBox(height: 24),
           Text(
@@ -348,10 +346,10 @@ class _TasksBody extends StatelessWidget {
                           item.completed ? TextDecoration.lineThrough : null,
                     ),
                   ),
-                  if (item.subtitle != null) ...[
+                  if (item.description != null) ...[
                     const SizedBox(height: 6),
                     Text(
-                      item.subtitle!,
+                      item.description!,
                       style: const TextStyle(
                         fontSize: 15,
                         color: _mutedColor,

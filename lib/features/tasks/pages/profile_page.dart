@@ -1,12 +1,12 @@
-import 'dart:io';
-
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import 'edit_profile_page.dart';
-import 'profile_model.dart';
+import 'package:app_todo/features/tasks/pages/edit_profile_page.dart';
+import 'package:app_todo/features/tasks/pages/settings_page.dart';
+import 'package:app_todo/features/tasks/view_model/auth_model.dart';
+import 'package:app_todo/features/tasks/view_model/profile_model.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -30,8 +30,10 @@ class _ProfilePageState extends State<ProfilePage> {
       isIOS: isIOS,
       name: profile.name,
       email: profile.email,
-      photoPath: profile.photoPath,
+      photoUrl: profile.photoUrl,
       onEditProfile: () => _openEditProfile(context),
+      onOpenSettings: () => _openSettings(context),
+      onSignOut: () => context.read<AuthModel>().signOut(),
     );
     if (isIOS) {
       return CupertinoPageScaffold(
@@ -92,25 +94,33 @@ class _ProfilePageState extends State<ProfilePage> {
             builder: (_) => EditProfilePage(
               initialName: profile.name,
               initialEmail: profile.email,
-              initialPhotoPath: profile.photoPath,
+              initialPhotoUrl: profile.photoUrl,
             ),
           )
         : MaterialPageRoute<EditProfileResult>(
             builder: (_) => EditProfilePage(
               initialName: profile.name,
               initialEmail: profile.email,
-              initialPhotoPath: profile.photoPath,
+              initialPhotoUrl: profile.photoUrl,
             ),
           );
     final result = await Navigator.of(context).push<EditProfileResult>(route);
     if (!mounted || result == null) {
       return;
     }
-    await profile.update(
+    await profile.updateProfile(
       name: result.name,
       email: result.email,
-      photoPath: result.photoPath,
+      photoFile: result.photoFile,
     );
+  }
+
+  void _openSettings(BuildContext context) {
+    final isIOS = defaultTargetPlatform == TargetPlatform.iOS;
+    final route = isIOS
+        ? CupertinoPageRoute<void>(builder: (_) => const SettingsPage())
+        : MaterialPageRoute<void>(builder: (_) => const SettingsPage());
+    Navigator.of(context).push(route);
   }
 }
 
@@ -119,15 +129,19 @@ class _ProfileBody extends StatelessWidget {
     required this.isIOS,
     required this.name,
     required this.email,
-    required this.photoPath,
+    required this.photoUrl,
     required this.onEditProfile,
+    required this.onOpenSettings,
+    required this.onSignOut,
   });
 
   final bool isIOS;
   final String name;
   final String email;
-  final String? photoPath;
+  final String? photoUrl;
   final VoidCallback onEditProfile;
+  final VoidCallback onOpenSettings;
+  final VoidCallback onSignOut;
 
   static const Color _accentGreen = ProfilePage._accentGreen;
   static const Color _titleColor = ProfilePage._titleColor;
@@ -147,11 +161,13 @@ class _ProfileBody extends StatelessWidget {
         label: 'Configurações',
         icon: isIOS ? CupertinoIcons.gear : Icons.settings_outlined,
         color: _titleColor,
+        onTap: onOpenSettings,
       ),
       _ProfileAction(
         label: 'Sair',
         icon: isIOS ? CupertinoIcons.square_arrow_right : Icons.logout,
         color: _dangerColor,
+        onTap: onSignOut,
       ),
     ];
 
@@ -198,11 +214,8 @@ class _ProfileBody extends StatelessWidget {
 
   Widget _buildAvatar() {
     final initial = _initialForName(name);
-    final imagePath = photoPath;
-    final imageFile = imagePath == null || imagePath.isEmpty
-        ? null
-        : File(imagePath);
-    final hasImage = imageFile != null && imageFile.existsSync();
+    final imageUrl = photoUrl?.trim();
+    final hasImage = imageUrl != null && imageUrl.isNotEmpty;
     return Container(
       width: 96,
       height: 96,
@@ -211,7 +224,7 @@ class _ProfileBody extends StatelessWidget {
         shape: BoxShape.circle,
         image: hasImage
             ? DecorationImage(
-                image: FileImage(imageFile!),
+                image: NetworkImage(imageUrl!),
                 fit: BoxFit.cover,
               )
             : null,

@@ -9,12 +9,12 @@ class EditProfileResult {
   const EditProfileResult({
     required this.name,
     required this.email,
-    this.photoPath,
+    this.photoFile,
   });
 
   final String name;
   final String email;
-  final String? photoPath;
+  final File? photoFile;
 }
 
 class EditProfilePage extends StatefulWidget {
@@ -22,12 +22,12 @@ class EditProfilePage extends StatefulWidget {
     super.key,
     required this.initialName,
     required this.initialEmail,
-    this.initialPhotoPath,
+    this.initialPhotoUrl,
   });
 
   final String initialName;
   final String initialEmail;
-  final String? initialPhotoPath;
+  final String? initialPhotoUrl;
 
   @override
   State<EditProfilePage> createState() => _EditProfilePageState();
@@ -48,6 +48,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
   late final TextEditingController _nameController;
   late final TextEditingController _emailController;
   File? _selectedImage;
+  String? _initialPhotoUrl;
 
   @override
   void initState() {
@@ -55,13 +56,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
     _nameController = TextEditingController(text: widget.initialName);
     _emailController = TextEditingController(text: widget.initialEmail);
     _nameController.addListener(_handleNameChanged);
-    final initialPath = widget.initialPhotoPath?.trim();
-    if (initialPath != null && initialPath.isNotEmpty) {
-      final file = File(initialPath);
-      if (file.existsSync()) {
-        _selectedImage = file;
-      }
-    }
+    _initialPhotoUrl = widget.initialPhotoUrl?.trim();
   }
 
   @override
@@ -79,6 +74,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
       nameController: _nameController,
       emailController: _emailController,
       selectedImage: _selectedImage,
+      initialPhotoUrl: _initialPhotoUrl,
       onPickImage: _handlePickImage,
       onSave: _handleSave,
     );
@@ -144,7 +140,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
       EditProfileResult(
         name: name,
         email: email,
-        photoPath: _selectedImage?.path,
+        photoFile: _selectedImage,
       ),
     );
   }
@@ -183,6 +179,7 @@ class _EditProfileBody extends StatelessWidget {
     required this.nameController,
     required this.emailController,
     required this.selectedImage,
+    required this.initialPhotoUrl,
     required this.onPickImage,
     required this.onSave,
   });
@@ -191,6 +188,7 @@ class _EditProfileBody extends StatelessWidget {
   final TextEditingController nameController;
   final TextEditingController emailController;
   final File? selectedImage;
+  final String? initialPhotoUrl;
   final VoidCallback onPickImage;
   final VoidCallback onSave;
 
@@ -254,7 +252,12 @@ class _EditProfileBody extends StatelessWidget {
   Widget _buildAvatar() {
     final initial = _initialForName(nameController.text);
     final image = selectedImage;
-    final hasImage = image != null && image.existsSync();
+    final imageUrl = initialPhotoUrl?.trim();
+    final hasFileImage = image != null && image.existsSync();
+    final hasNetworkImage = !hasFileImage &&
+        imageUrl != null &&
+        imageUrl.isNotEmpty;
+    final hasImage = hasFileImage || hasNetworkImage;
     return Center(
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
@@ -272,12 +275,17 @@ class _EditProfileBody extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: _accentGreen,
                     shape: BoxShape.circle,
-                    image: hasImage
+                    image: hasFileImage
                         ? DecorationImage(
                             image: FileImage(image!),
                             fit: BoxFit.cover,
                           )
-                        : null,
+                        : hasNetworkImage
+                            ? DecorationImage(
+                                image: NetworkImage(imageUrl!),
+                                fit: BoxFit.cover,
+                              )
+                            : null,
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withOpacity(0.08),
@@ -536,7 +544,7 @@ class _EditProfileBody extends StatelessWidget {
   String _initialForName(String value) {
     final trimmed = value.trim();
     if (trimmed.isEmpty) {
-      return 'S';
+      return 'U';
     }
     return trimmed.substring(0, 1).toUpperCase();
   }

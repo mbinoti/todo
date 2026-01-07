@@ -1,8 +1,9 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
-import 'task_item.dart';
+import 'package:app_todo/features/tasks/view_model/tasks_model.dart';
 
 class NewTaskPage extends StatelessWidget {
   const NewTaskPage({super.key});
@@ -158,13 +159,22 @@ class _NewTaskBodyState extends State<_NewTaskBody> {
       return;
     }
     final description = _descriptionController.text.trim();
-    final task = TaskItem(
-      title: title,
-      subtitle: description.isEmpty ? null : description,
-      completed: false,
-      createdAt: DateTime.now(),
-    );
-    Navigator.of(context).pop(task);
+    _createTask(title, description.isEmpty ? null : description);
+  }
+
+  Future<void> _createTask(String title, String? description) async {
+    final tasksModel = context.read<TasksModel>();
+    await tasksModel.addTask(title: title, description: description);
+    if (!mounted) {
+      return;
+    }
+    if (tasksModel.errorMessage != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(tasksModel.errorMessage!)),
+      );
+      return;
+    }
+    Navigator.of(context).pop(true);
   }
 
   Widget _buildTitleField() {

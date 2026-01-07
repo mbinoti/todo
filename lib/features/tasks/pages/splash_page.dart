@@ -2,33 +2,9 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-import 'login_page.dart';
 
-class SplashPage extends StatefulWidget {
+class SplashPage extends StatelessWidget {
   const SplashPage({super.key});
-
-  @override
-  State<SplashPage> createState() => _SplashPageState();
-}
-
-class _SplashPageState extends State<SplashPage> {
-  @override
-  void initState() {
-    super.initState();
-    _startTimer();
-  }
-
-  Future<void> _startTimer() async {
-    await Future<void>.delayed(const Duration(seconds: 2));
-    if (!mounted) {
-      return;
-    }
-    final isIOS = defaultTargetPlatform == TargetPlatform.iOS;
-    final route = isIOS
-        ? CupertinoPageRoute<void>(builder: (_) => const LoginPage())
-        : MaterialPageRoute<void>(builder: (_) => const LoginPage());
-    Navigator.of(context).pushReplacement(route);
-  }
 
   static const Color _accentGreen = Color(0xFF21B66E);
   static const Color _titleColor = Color(0xFF1D1E20);

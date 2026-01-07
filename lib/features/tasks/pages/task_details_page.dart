@@ -2,7 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-import 'task_item.dart';
+import 'package:app_todo/features/tasks/models/task_item.dart';
 
 enum TaskDetailsAction { updated, deleted }
 
@@ -44,7 +44,7 @@ class _TaskDetailsPageState extends State<TaskDetailsPage> {
     super.initState();
     _titleController = TextEditingController(text: widget.task.title);
     _descriptionController =
-        TextEditingController(text: widget.task.subtitle ?? '');
+        TextEditingController(text: widget.task.description ?? '');
     _titleFocusNode = FocusNode();
   }
 
@@ -294,7 +294,7 @@ class _TaskDetailsPageState extends State<TaskDetailsPage> {
 
   Widget _buildDescriptionText() {
     return Text(
-      widget.task.subtitle ?? '',
+      widget.task.description ?? '',
       style: const TextStyle(
         fontSize: 16,
         color: _titleColor,
@@ -399,10 +399,11 @@ class _TaskDetailsPageState extends State<TaskDetailsPage> {
       _showMessage('Informe o título da tarefa.');
       return;
     }
-    final subtitle = _descriptionController.text.trim();
+    final description = _descriptionController.text.trim();
     final updated = widget.task.copyWith(
       title: title,
-      subtitle: subtitle.isEmpty ? null : subtitle,
+      description: description.isEmpty ? null : description,
+      updatedAt: DateTime.now(),
     );
     FocusScope.of(context).unfocus();
     Navigator.of(context).pop(TaskDetailsResult.updated(updated));

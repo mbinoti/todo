@@ -1,9 +1,10 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
-import 'create_account_page.dart';
-import 'tasks_page.dart';
+import 'package:app_todo/features/tasks/pages/create_account_page.dart';
+import 'package:app_todo/features/tasks/view_model/auth_model.dart';
 
 class LoginPage extends StatelessWidget {
   const LoginPage({super.key});
@@ -29,10 +30,18 @@ class LoginPage extends StatelessWidget {
   }
 }
 
-class _LoginBody extends StatelessWidget {
+class _LoginBody extends StatefulWidget {
   const _LoginBody({required this.isIOS});
 
   final bool isIOS;
+
+  @override
+  State<_LoginBody> createState() => _LoginBodyState();
+}
+
+class _LoginBodyState extends State<_LoginBody> {
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
 
   static const Color _accentGreen = LoginPage._accentGreen;
   static const Color _titleColor = LoginPage._titleColor;
@@ -41,8 +50,18 @@ class _LoginBody extends StatelessWidget {
   static const Color _requiredColor = LoginPage._requiredColor;
   static const Color _hintColor = LoginPage._hintColor;
 
+  bool get isIOS => widget.isIOS;
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthModel>();
     return SafeArea(
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -91,7 +110,7 @@ class _LoginBody extends StatelessWidget {
                     child: _buildForgotPasswordAction(context),
                   ),
                   const SizedBox(height: 24),
-                  _buildLoginButton(context),
+                  _buildLoginButton(context, auth.isBusy),
                   const SizedBox(height: 26),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -138,11 +157,13 @@ class _LoginBody extends StatelessWidget {
   Widget _buildEmailField() {
     if (isIOS) {
       return _buildCupertinoField(
+        controller: _emailController,
         placeholder: 'seu@email.com',
         keyboardType: TextInputType.emailAddress,
       );
     }
     return TextField(
+      controller: _emailController,
       keyboardType: TextInputType.emailAddress,
       decoration: _inputDecoration('seu@email.com'),
     );
@@ -151,6 +172,7 @@ class _LoginBody extends StatelessWidget {
   Widget _buildPasswordField() {
     if (isIOS) {
       return _buildCupertinoField(
+        controller: _passwordController,
         placeholder: '••••••••',
         obscureText: true,
         suffix: const Padding(
@@ -160,6 +182,7 @@ class _LoginBody extends StatelessWidget {
       );
     }
     return TextField(
+      controller: _passwordController,
       obscureText: true,
       decoration: _inputDecoration(
         '••••••••',
@@ -168,7 +191,8 @@ class _LoginBody extends StatelessWidget {
     );
   }
 
-  Widget _buildLoginButton(BuildContext context) {
+  Widget _buildLoginButton(BuildContext context, bool isBusy) {
+    final onPressed = isBusy ? null : () => _handleLogin(context);
     if (isIOS) {
       return SizedBox(
         height: 54,
@@ -176,7 +200,7 @@ class _LoginBody extends StatelessWidget {
           padding: EdgeInsets.zero,
           borderRadius: BorderRadius.circular(28),
           color: _accentGreen,
-          onPressed: () => _openTasks(context),
+          onPressed: onPressed,
           child: const Text(
             'Entrar',
             style: TextStyle(
@@ -199,7 +223,7 @@ class _LoginBody extends StatelessWidget {
             borderRadius: BorderRadius.circular(28),
           ),
         ),
-        onPressed: () => _openTasks(context),
+        onPressed: onPressed,
         child: const Text(
           'Entrar',
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
@@ -208,11 +232,22 @@ class _LoginBody extends StatelessWidget {
     );
   }
 
-  void _openTasks(BuildContext context) {
-    final route = isIOS
-        ? CupertinoPageRoute<void>(builder: (_) => const TasksPage())
-        : MaterialPageRoute<void>(builder: (_) => const TasksPage());
-    Navigator.of(context).pushReplacement(route);
+  Future<void> _handleLogin(BuildContext context) async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+    if (email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Informe email e senha.')),
+      );
+      return;
+    }
+    final auth = context.read<AuthModel>();
+    final success = await auth.signIn(email: email, password: password);
+    if (!success && mounted) {
+      final message = auth.errorMessage ?? 'Não foi possível entrar.';
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
+    }
   }
 
   void _showForgotPasswordMessage(BuildContext context) {
@@ -332,12 +367,14 @@ class _LoginBody extends StatelessWidget {
   }
 
   Widget _buildCupertinoField({
+    required TextEditingController controller,
     required String placeholder,
     TextInputType? keyboardType,
     bool obscureText = false,
     Widget? suffix,
   }) {
     return CupertinoTextField(
+      controller: controller,
       keyboardType: keyboardType,
       obscureText: obscureText,
       placeholder: placeholder,

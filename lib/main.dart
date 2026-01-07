@@ -1,66 +1,70 @@
-import 'package:flutter/cupertino.dart';
-import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/widgets.dart';
 import 'package:provider/provider.dart';
 
-import 'profile_model.dart';
-import 'profile_model.dart';
-import 'splash_page.dart';
+import 'package:app_todo/app/app.dart';
+import 'package:app_todo/features/tasks/repository/auth_repository.dart';
+import 'package:app_todo/features/tasks/repository/firebase_auth_repository.dart';
+import 'package:app_todo/features/tasks/repository/firebase_task_repository.dart';
+import 'package:app_todo/features/tasks/repository/firebase_user_repository.dart';
+import 'package:app_todo/features/tasks/repository/task_repository.dart';
+import 'package:app_todo/features/tasks/repository/user_repository.dart';
+import 'package:app_todo/features/tasks/view_model/auth_model.dart';
+import 'package:app_todo/features/tasks/view_model/profile_model.dart';
+import 'package:app_todo/features/tasks/view_model/tasks_model.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  final profileModel = ProfileModel();
-  await profileModel.loadFromPrefs();
-  runApp(MainApp(profileModel: profileModel));
+  await Firebase.initializeApp();
+  runApp(const AppBootstrap());
 }
 
-class MainApp extends StatelessWidget {
-  const MainApp({super.key, required this.profileModel});
-
-  final ProfileModel profileModel;
+class AppBootstrap extends StatelessWidget {
+  const AppBootstrap({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final isIOS = defaultTargetPlatform == TargetPlatform.iOS;
-    if (isIOS) {
-      return ChangeNotifierProvider(
-        value: profileModel,
-        child: CupertinoApp(
-          debugShowCheckedModeBanner: false,
-          theme: CupertinoThemeData(
-            scaffoldBackgroundColor: Color(0xFFF6F7F8),
-            primaryColor: Color(0xFF21B66E),
+    return MultiProvider(
+      providers: [
+        Provider<AuthRepository>(
+          create: (_) => FirebaseAuthRepository(FirebaseAuth.instance),
+        ),
+        Provider<UserRepository>(
+          create: (_) => FirebaseUserRepository(
+            FirebaseFirestore.instance,
+            FirebaseStorage.instance,
           ),
-          localizationsDelegates: const [
-            DefaultWidgetsLocalizations.delegate,
-            DefaultMaterialLocalizations.delegate,
-            DefaultCupertinoLocalizations.delegate,
-          ],
-          builder: _wrapWithSnackBarHost,
-          home: const SplashPage(),
         ),
-      );
-    }
-    return ChangeNotifierProvider(
-      value: profileModel,
-      child: MaterialApp(
-        debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          useMaterial3: true,
-          scaffoldBackgroundColor: const Color(0xFFF6F7F8),
-          colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF21B66E)),
+        Provider<TaskRepository>(
+          create: (_) => FirebaseTaskRepository(FirebaseFirestore.instance),
         ),
-        home: const SplashPage(),
-      ),
+        ChangeNotifierProvider<AuthModel>(
+          create: (context) => AuthModel(
+            authRepository: context.read<AuthRepository>(),
+            userRepository: context.read<UserRepository>(),
+          ),
+        ),
+        ChangeNotifierProxyProvider2<AuthModel, UserRepository, ProfileModel>(
+          create: (_) => ProfileModel(),
+          update: (_, authModel, userRepository, profileModel) {
+            final model = profileModel ?? ProfileModel();
+            model.bind(authModel: authModel, userRepository: userRepository);
+            return model;
+          },
+        ),
+        ChangeNotifierProxyProvider2<AuthModel, TaskRepository, TasksModel>(
+          create: (_) => TasksModel(),
+          update: (_, authModel, taskRepository, tasksModel) {
+            final model = tasksModel ?? TasksModel();
+            model.bind(authModel: authModel, taskRepository: taskRepository);
+            return model;
+          },
+        ),
+      ],
+      child: const MainApp(),
     );
   }
-}
-
-Widget _wrapWithSnackBarHost(BuildContext context, Widget? child) {
-  return ScaffoldMessenger(
-    child: Scaffold(
-      backgroundColor: Colors.transparent,
-      body: child ?? const SizedBox.shrink(),
-    ),
-  );
 }

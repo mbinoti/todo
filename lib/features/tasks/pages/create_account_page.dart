@@ -1,6 +1,9 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import 'package:app_todo/features/tasks/view_model/auth_model.dart';
 
 class CreateAccountPage extends StatelessWidget {
   const CreateAccountPage({super.key});
@@ -55,10 +58,21 @@ class CreateAccountPage extends StatelessWidget {
   }
 }
 
-class _CreateAccountBody extends StatelessWidget {
+class _CreateAccountBody extends StatefulWidget {
   const _CreateAccountBody({required this.isIOS});
 
   final bool isIOS;
+
+  @override
+  State<_CreateAccountBody> createState() => _CreateAccountBodyState();
+}
+
+class _CreateAccountBodyState extends State<_CreateAccountBody> {
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _confirmPasswordController =
+      TextEditingController();
 
   static const Color _accentGreen = CreateAccountPage._accentGreen;
   static const Color _titleColor = CreateAccountPage._titleColor;
@@ -67,15 +81,28 @@ class _CreateAccountBody extends StatelessWidget {
   static const Color _requiredColor = CreateAccountPage._requiredColor;
   static const Color _hintColor = CreateAccountPage._hintColor;
 
+  bool get isIOS => widget.isIOS;
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthModel>();
     return SafeArea(
       top: false,
       child: LayoutBuilder(
         builder: (context, constraints) {
           return SingleChildScrollView(
-            physics:
-                isIOS ? const BouncingScrollPhysics() : const ClampingScrollPhysics(),
+            physics: isIOS
+                ? const BouncingScrollPhysics()
+                : const ClampingScrollPhysics(),
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
             child: ConstrainedBox(
               constraints: BoxConstraints(minHeight: constraints.maxHeight),
@@ -105,13 +132,19 @@ class _CreateAccountBody extends StatelessWidget {
                   const SizedBox(height: 22),
                   _buildFieldLabel('Senha'),
                   const SizedBox(height: 10),
-                  _buildPasswordField(placeholder: '••••••••'),
+                  _buildPasswordField(
+                    controller: _passwordController,
+                    placeholder: '••••••••',
+                  ),
                   const SizedBox(height: 22),
                   _buildFieldLabel('Confirmar senha'),
                   const SizedBox(height: 10),
-                  _buildPasswordField(placeholder: '••••••••'),
+                  _buildPasswordField(
+                    controller: _confirmPasswordController,
+                    placeholder: '••••••••',
+                  ),
                   const SizedBox(height: 30),
-                  _buildSubmitButton(),
+                  _buildSubmitButton(context, auth.isBusy),
                 ],
               ),
             ),
@@ -124,11 +157,13 @@ class _CreateAccountBody extends StatelessWidget {
   Widget _buildNameField() {
     if (isIOS) {
       return _buildCupertinoField(
+        controller: _nameController,
         placeholder: 'João Silva',
         textCapitalization: TextCapitalization.words,
       );
     }
     return TextField(
+      controller: _nameController,
       textCapitalization: TextCapitalization.words,
       decoration: _inputDecoration('João Silva'),
     );
@@ -137,19 +172,25 @@ class _CreateAccountBody extends StatelessWidget {
   Widget _buildEmailField() {
     if (isIOS) {
       return _buildCupertinoField(
+        controller: _emailController,
         placeholder: 'seu@email.com',
         keyboardType: TextInputType.emailAddress,
       );
     }
     return TextField(
+      controller: _emailController,
       keyboardType: TextInputType.emailAddress,
       decoration: _inputDecoration('seu@email.com'),
     );
   }
 
-  Widget _buildPasswordField({required String placeholder}) {
+  Widget _buildPasswordField({
+    required TextEditingController controller,
+    required String placeholder,
+  }) {
     if (isIOS) {
       return _buildCupertinoField(
+        controller: controller,
         placeholder: placeholder,
         obscureText: true,
         suffix: const Padding(
@@ -159,6 +200,7 @@ class _CreateAccountBody extends StatelessWidget {
       );
     }
     return TextField(
+      controller: controller,
       obscureText: true,
       decoration: _inputDecoration(
         placeholder,
@@ -170,7 +212,8 @@ class _CreateAccountBody extends StatelessWidget {
     );
   }
 
-  Widget _buildSubmitButton() {
+  Widget _buildSubmitButton(BuildContext context, bool isBusy) {
+    final onPressed = isBusy ? null : () => _handleSubmit(context);
     if (isIOS) {
       return SizedBox(
         height: 54,
@@ -178,7 +221,7 @@ class _CreateAccountBody extends StatelessWidget {
           padding: EdgeInsets.zero,
           borderRadius: BorderRadius.circular(28),
           color: _accentGreen,
-          onPressed: () {},
+          onPressed: onPressed,
           child: const Text(
             'Criar conta',
             style: TextStyle(
@@ -201,7 +244,7 @@ class _CreateAccountBody extends StatelessWidget {
             borderRadius: BorderRadius.circular(28),
           ),
         ),
-        onPressed: () {},
+        onPressed: onPressed,
         child: const Text(
           'Criar conta',
           style: TextStyle(
@@ -211,6 +254,46 @@ class _CreateAccountBody extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _handleSubmit(BuildContext context) async {
+    final name = _nameController.text.trim();
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+    final confirmPassword = _confirmPasswordController.text;
+    if (name.isEmpty || email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Preencha todos os campos.')),
+      );
+      return;
+    }
+    if (password != confirmPassword) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('As senhas não coincidem.')),
+      );
+      return;
+    }
+    final auth = context.read<AuthModel>();
+    final success = await auth.signUp(
+      name: name,
+      email: email,
+      password: password,
+    );
+    if (!mounted) {
+      return;
+    }
+    if (!success) {
+      final message = auth.errorMessage ?? 'Não foi possível criar a conta.';
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Conta criada. Verifique seu email para continuar.'),
+      ),
+    );
+    Navigator.of(context).maybePop();
   }
 
   Widget _buildFieldLabel(String label) {
@@ -262,13 +345,15 @@ class _CreateAccountBody extends StatelessWidget {
   }
 
   Widget _buildCupertinoField({
+    required TextEditingController controller,
     required String placeholder,
     TextInputType? keyboardType,
-    TextCapitalization textCapitalization = TextCapitalization.none,
     bool obscureText = false,
+    TextCapitalization textCapitalization = TextCapitalization.none,
     Widget? suffix,
   }) {
     return CupertinoTextField(
+      controller: controller,
       keyboardType: keyboardType,
       obscureText: obscureText,
       textCapitalization: textCapitalization,
