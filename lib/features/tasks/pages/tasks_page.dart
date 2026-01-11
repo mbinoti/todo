@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -128,8 +130,8 @@ class _TasksPageState extends State<TasksPage> {
 
   Widget _buildAvatar(ProfileModel profile) {
     const size = 32.0;
-    final imageUrl = profile.photoUrl?.trim();
-    final hasImage = imageUrl != null && imageUrl.isNotEmpty;
+    final imageProvider = _resolveAvatarImage(profile.photoUrl);
+    final hasImage = imageProvider != null;
     final initial = _initialForName(profile.name);
     return Container(
       width: size,
@@ -139,7 +141,7 @@ class _TasksPageState extends State<TasksPage> {
         color: TasksPage._accentGreen,
         image: hasImage
             ? DecorationImage(
-                image: NetworkImage(imageUrl!),
+                image: imageProvider!,
                 fit: BoxFit.cover,
               )
             : null,
@@ -155,6 +157,24 @@ class _TasksPageState extends State<TasksPage> {
               ),
             ),
     );
+  }
+
+  ImageProvider? _resolveAvatarImage(String? url) {
+    final trimmed = url?.trim();
+    if (trimmed == null || trimmed.isEmpty) {
+      return null;
+    }
+    final uri = Uri.tryParse(trimmed);
+    if (uri != null && (uri.scheme == 'http' || uri.scheme == 'https')) {
+      return NetworkImage(trimmed);
+    }
+    final file = uri != null && uri.scheme == 'file'
+        ? File.fromUri(uri)
+        : File(trimmed);
+    if (file.existsSync()) {
+      return FileImage(file);
+    }
+    return NetworkImage(trimmed);
   }
 
   String _initialForName(String name) {

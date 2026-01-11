@@ -1,8 +1,6 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 import 'package:app_todo/features/tasks/models/user_preferences.dart';
 
-/// Domain model for the user profile stored in Firestore.
+/// Domain model for the user profile stored locally.
 class UserProfile {
   const UserProfile({
     required this.uid,
@@ -53,14 +51,29 @@ class UserProfile {
   }
 
   static UserProfile fromFirestore(String uid, Map<String, Object?> data) {
-    DateTime resolveDate(Object? value) {
+    DateTime? parseDate(Object? value) {
+      if (value == null) {
+        return null;
+      }
       if (value is DateTime) {
         return value;
       }
-      if (value is Timestamp) {
-        return value.toDate();
+      if (value is int) {
+        return DateTime.fromMillisecondsSinceEpoch(value);
       }
-      return DateTime.now();
+      if (value is String) {
+        return DateTime.tryParse(value);
+      }
+      try {
+        final dynamic dynamicValue = value;
+        final dynamic resolved = dynamicValue.toDate();
+        if (resolved is DateTime) {
+          return resolved;
+        }
+      } catch (_) {
+        return null;
+      }
+      return null;
     }
 
     return UserProfile(
@@ -68,8 +81,8 @@ class UserProfile {
       name: data['name'] as String? ?? '',
       email: data['email'] as String? ?? '',
       photoUrl: data['photoUrl'] as String?,
-      createdAt: resolveDate(data['createdAt']),
-      updatedAt: resolveDate(data['updatedAt']),
+      createdAt: parseDate(data['createdAt']) ?? DateTime.now(),
+      updatedAt: parseDate(data['updatedAt']) ?? DateTime.now(),
       preferences: UserPreferences.fromFirestore(
         data['preferences'] as Map<String, Object?>?,
       ),

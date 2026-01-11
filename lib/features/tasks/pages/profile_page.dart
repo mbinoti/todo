@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -214,8 +216,8 @@ class _ProfileBody extends StatelessWidget {
 
   Widget _buildAvatar() {
     final initial = _initialForName(name);
-    final imageUrl = photoUrl?.trim();
-    final hasImage = imageUrl != null && imageUrl.isNotEmpty;
+    final imageProvider = _resolveAvatarImage(photoUrl);
+    final hasImage = imageProvider != null;
     return Container(
       width: 96,
       height: 96,
@@ -224,7 +226,7 @@ class _ProfileBody extends StatelessWidget {
         shape: BoxShape.circle,
         image: hasImage
             ? DecorationImage(
-                image: NetworkImage(imageUrl!),
+                image: imageProvider!,
                 fit: BoxFit.cover,
               )
             : null,
@@ -249,6 +251,24 @@ class _ProfileBody extends StatelessWidget {
               ),
             ),
     );
+  }
+
+  ImageProvider? _resolveAvatarImage(String? url) {
+    final trimmed = url?.trim();
+    if (trimmed == null || trimmed.isEmpty) {
+      return null;
+    }
+    final uri = Uri.tryParse(trimmed);
+    if (uri != null && (uri.scheme == 'http' || uri.scheme == 'https')) {
+      return NetworkImage(trimmed);
+    }
+    final file = uri != null && uri.scheme == 'file'
+        ? File.fromUri(uri)
+        : File(trimmed);
+    if (file.existsSync()) {
+      return FileImage(file);
+    }
+    return NetworkImage(trimmed);
   }
 
   Widget _buildActionRow(_ProfileAction item) {

@@ -254,10 +254,16 @@ class _EditProfileBody extends StatelessWidget {
     final image = selectedImage;
     final imageUrl = initialPhotoUrl?.trim();
     final hasFileImage = image != null && image.existsSync();
+    final localImageFile = !hasFileImage && imageUrl != null && imageUrl.isNotEmpty
+        ? File(imageUrl)
+        : null;
+    final hasLocalImage =
+        localImageFile != null && localImageFile.existsSync();
     final hasNetworkImage = !hasFileImage &&
+        !hasLocalImage &&
         imageUrl != null &&
         imageUrl.isNotEmpty;
-    final hasImage = hasFileImage || hasNetworkImage;
+    final hasImage = hasFileImage || hasLocalImage || hasNetworkImage;
     return Center(
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
@@ -280,6 +286,11 @@ class _EditProfileBody extends StatelessWidget {
                             image: FileImage(image!),
                             fit: BoxFit.cover,
                           )
+                        : hasLocalImage
+                            ? DecorationImage(
+                                image: FileImage(localImageFile!),
+                                fit: BoxFit.cover,
+                              )
                         : hasNetworkImage
                             ? DecorationImage(
                                 image: NetworkImage(imageUrl!),

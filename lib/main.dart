@@ -1,24 +1,19 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/widgets.dart';
 import 'package:provider/provider.dart';
 
 import 'package:app_todo/app/app.dart';
 import 'package:app_todo/features/tasks/repository/auth_repository.dart';
-import 'package:app_todo/features/tasks/repository/firebase_auth_repository.dart';
-import 'package:app_todo/features/tasks/repository/firebase_task_repository.dart';
-import 'package:app_todo/features/tasks/repository/firebase_user_repository.dart';
+import 'package:app_todo/features/tasks/repository/local_auth_repository.dart';
+import 'package:app_todo/features/tasks/repository/local_task_repository.dart';
+import 'package:app_todo/features/tasks/repository/local_user_repository.dart';
 import 'package:app_todo/features/tasks/repository/task_repository.dart';
 import 'package:app_todo/features/tasks/repository/user_repository.dart';
 import 'package:app_todo/features/tasks/view_model/auth_model.dart';
 import 'package:app_todo/features/tasks/view_model/profile_model.dart';
 import 'package:app_todo/features/tasks/view_model/tasks_model.dart';
 
-Future<void> main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
   runApp(const AppBootstrap());
 }
 
@@ -29,25 +24,20 @@ class AppBootstrap extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        // Provider: servico puro (auth) sem estado de UI; fica global para reuso e facilita mock em testes.
+        // Provider: auth local em memoria para manter login e isolar a UI do armazenamento.
         Provider<AuthRepository>(
-          create: (_) => FirebaseAuthRepository(FirebaseAuth.instance),
+          create: (_) => LocalAuthRepository(),
         ),
-        // Provider: repositorio de usuario usa Firestore/Storage, mas nao emite mudanca direto na UI.
-        // Exposto via interface para desacoplar Firebase e simplificar trocas futuras.
+        // Provider: repositorio de perfis local, usado pelos models sem dependencias externas.
         Provider<UserRepository>(
-          create: (_) => FirebaseUserRepository(
-            FirebaseFirestore.instance,
-            FirebaseStorage.instance,
-          ),
+          create: (_) => LocalUserRepository(),
         ),
-        // Provider: repositorio de tarefas centraliza acesso a dados e regras; sem notifyListeners.
-        // Mantem uma unica instancia compartilhada entre modelos.
+        // Provider: repositorio de tarefas em memoria; centraliza acesso e mantem estado por usuario.
         Provider<TaskRepository>(
-          create: (_) => FirebaseTaskRepository(FirebaseFirestore.instance),
+          create: (_) => LocalTaskRepository(),
         ),
         // ChangeNotifierProvider: AuthModel muda com login/logout; precisa notificar a UI quando status muda.
-        // Depende dos repositorios acima para executar operacoes sem acoplamento direto a Firebase.
+        // Depende dos repositorios acima para executar operacoes sem acoplamento direto ao armazenamento.
         ChangeNotifierProvider<AuthModel>(
           create: (context) => AuthModel(
             authRepository: context.read<AuthRepository>(),

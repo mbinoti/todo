@@ -24,7 +24,7 @@ abstract class AuthRepository {
   Future<void> signOut();
 }
 
-/// Normalized auth failure used outside Firebase SDK.
+/// Normalized auth failure used outside the auth provider.
 class AuthFailure implements Exception {
   const AuthFailure(this.code, [this.message]);
 

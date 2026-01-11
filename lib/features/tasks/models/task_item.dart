@@ -1,6 +1,4 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
-/// Domain model for a task stored in Firestore.
+/// Domain model for a task stored locally.
 class TaskItem {
   const TaskItem({
     this.id,
@@ -45,7 +43,7 @@ class TaskItem {
     );
   }
 
-  /// Serializes the task for Firestore writes.
+  /// Serializes the task for storage.
   Map<String, Object?> toFirestore() {
     return {
       'title': title,
@@ -57,27 +55,29 @@ class TaskItem {
     };
   }
 
-  /// Builds a TaskItem from Firestore data.
+  /// Builds a TaskItem from stored data.
   static TaskItem fromFirestore(String id, Map<String, Object?> data) {
-    DateTime resolveDate(Object? value) {
-      if (value is DateTime) {
-        return value;
-      }
-      if (value is Timestamp) {
-        return value.toDate();
-      }
-      return DateTime.now();
-    }
-
-    DateTime? resolveOptionalDate(Object? value) {
+    DateTime? parseDate(Object? value) {
       if (value == null) {
         return null;
       }
       if (value is DateTime) {
         return value;
       }
-      if (value is Timestamp) {
-        return value.toDate();
+      if (value is int) {
+        return DateTime.fromMillisecondsSinceEpoch(value);
+      }
+      if (value is String) {
+        return DateTime.tryParse(value);
+      }
+      try {
+        final dynamic dynamicValue = value;
+        final dynamic resolved = dynamicValue.toDate();
+        if (resolved is DateTime) {
+          return resolved;
+        }
+      } catch (_) {
+        return null;
       }
       return null;
     }
@@ -87,9 +87,9 @@ class TaskItem {
       title: data['title'] as String? ?? '',
       description: data['description'] as String?,
       completed: data['completed'] as bool? ?? false,
-      createdAt: resolveDate(data['createdAt']),
-      updatedAt: resolveOptionalDate(data['updatedAt']),
-      completedAt: resolveOptionalDate(data['completedAt']),
+      createdAt: parseDate(data['createdAt']) ?? DateTime.now(),
+      updatedAt: parseDate(data['updatedAt']),
+      completedAt: parseDate(data['completedAt']),
     );
   }
 }

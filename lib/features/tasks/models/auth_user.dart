@@ -1,4 +1,4 @@
-/// Lightweight auth user model detached from Firebase SDK.
+/// Lightweight auth user model detached from the auth provider.
 class AuthUser {
   const AuthUser({
     required this.uid,
