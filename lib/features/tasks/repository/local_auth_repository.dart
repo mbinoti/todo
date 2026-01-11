@@ -1,15 +1,24 @@
 import 'dart:async';
 
+import 'package:hive/hive.dart';
+
 import 'package:app_todo/features/tasks/models/auth_user.dart';
 import 'package:app_todo/features/tasks/repository/auth_repository.dart';
 
-/// Simple in-memory auth implementation for local-only data.
+/// Local auth implementation backed by Hive for persistence.
 class LocalAuthRepository implements AuthRepository {
-  LocalAuthRepository();
+  LocalAuthRepository(this._box) {
+    _loadFromStorage();
+  }
+
+  final Box<dynamic> _box;
+  static const String _accountsKey = 'accounts';
+  static const String _currentUidKey = 'currentUid';
 
   final StreamController<AuthUser?> _authController =
       StreamController<AuthUser?>.broadcast();
   final Map<String, _LocalAccount> _accountsByEmail = {};
+  final Map<String, _LocalAccount> _accountsById = {};
   _LocalAccount? _currentAccount;
   int _counter = 0;
 
@@ -42,6 +51,7 @@ class LocalAuthRepository implements AuthRepository {
     }
     _currentAccount = account;
     _authController.add(account.toAuthUser());
+    await _persistState();
     return account.toAuthUser();
   }
 
@@ -71,8 +81,10 @@ class LocalAuthRepository implements AuthRepository {
     );
     account.verificationRequested = true;
     _accountsByEmail[normalized] = account;
+    _accountsById[uid] = account;
     _currentAccount = account;
     _authController.add(account.toAuthUser());
+    await _persistState();
     return account.toAuthUser();
   }
 
@@ -83,6 +95,7 @@ class LocalAuthRepository implements AuthRepository {
       return;
     }
     account.verificationRequested = true;
+    await _persistState();
   }
 
   @override
@@ -94,6 +107,7 @@ class LocalAuthRepository implements AuthRepository {
     if (!account.emailVerified && account.verificationRequested) {
       account.emailVerified = true;
       _authController.add(account.toAuthUser());
+      await _persistState();
     }
     return account.toAuthUser();
   }
@@ -102,10 +116,54 @@ class LocalAuthRepository implements AuthRepository {
   Future<void> signOut() async {
     _currentAccount = null;
     _authController.add(null);
+    await _persistState();
   }
 
   bool _isValidEmail(String email) {
     return email.contains('@') && email.contains('.');
+  }
+
+  void _loadFromStorage() {
+    final storedAccounts = _box.get(_accountsKey);
+    if (storedAccounts is List) {
+      for (final raw in storedAccounts) {
+        if (raw is Map) {
+          final account = _LocalAccount.fromMap(raw);
+          if (account.uid.isEmpty || account.email.isEmpty) {
+            continue;
+          }
+          _accountsByEmail[account.email] = account;
+          _accountsById[account.uid] = account;
+          _counter = _maxCounter(_counter, account.uid);
+        }
+      }
+    }
+    final currentUid = _box.get(_currentUidKey);
+    if (currentUid is String) {
+      _currentAccount = _accountsById[currentUid];
+    }
+  }
+
+  int _maxCounter(int current, String uid) {
+    const prefix = 'local_';
+    if (!uid.startsWith(prefix)) {
+      return current;
+    }
+    final value = int.tryParse(uid.substring(prefix.length));
+    if (value == null) {
+      return current;
+    }
+    return value > current ? value : current;
+  }
+
+  Future<void> _persistState() {
+    final accounts = _accountsById.values
+        .map((account) => account.toMap())
+        .toList(growable: false);
+    return Future.wait([
+      _box.put(_accountsKey, accounts),
+      _box.put(_currentUidKey, _currentAccount?.uid),
+    ]);
   }
 }
 
@@ -132,5 +190,27 @@ class _LocalAccount {
       displayName: displayName,
       emailVerified: emailVerified,
     );
+  }
+
+  Map<String, Object?> toMap() {
+    return {
+      'uid': uid,
+      'email': email,
+      'displayName': displayName,
+      'password': password,
+      'emailVerified': emailVerified,
+      'verificationRequested': verificationRequested,
+    };
+  }
+
+  static _LocalAccount fromMap(Map<dynamic, dynamic> data) {
+    return _LocalAccount(
+      uid: data['uid'] as String? ?? '',
+      email: (data['email'] as String? ?? '').trim().toLowerCase(),
+      displayName: data['displayName'] as String?,
+      password: data['password'] as String? ?? '',
+      emailVerified: data['emailVerified'] as bool? ?? false,
+    )..verificationRequested =
+        data['verificationRequested'] as bool? ?? false;
   }
 }

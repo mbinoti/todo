@@ -1,4 +1,5 @@
 import 'package:flutter/widgets.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
 
 import 'package:app_todo/app/app.dart';
@@ -12,13 +13,32 @@ import 'package:app_todo/features/tasks/view_model/auth_model.dart';
 import 'package:app_todo/features/tasks/view_model/profile_model.dart';
 import 'package:app_todo/features/tasks/view_model/tasks_model.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const AppBootstrap());
+  await Hive.initFlutter();
+  final authBox = await Hive.openBox('local_auth');
+  final profilesBox = await Hive.openBox('local_profiles');
+  final tasksBox = await Hive.openBox('local_tasks');
+  runApp(
+    AppBootstrap(
+      authBox: authBox,
+      profilesBox: profilesBox,
+      tasksBox: tasksBox,
+    ),
+  );
 }
 
 class AppBootstrap extends StatelessWidget {
-  const AppBootstrap({super.key});
+  const AppBootstrap({
+    super.key,
+    required this.authBox,
+    required this.profilesBox,
+    required this.tasksBox,
+  });
+
+  final Box<dynamic> authBox;
+  final Box<dynamic> profilesBox;
+  final Box<dynamic> tasksBox;
 
   @override
   Widget build(BuildContext context) {
@@ -26,15 +46,15 @@ class AppBootstrap extends StatelessWidget {
       providers: [
         // Provider: auth local em memoria para manter login e isolar a UI do armazenamento.
         Provider<AuthRepository>(
-          create: (_) => LocalAuthRepository(),
+          create: (_) => LocalAuthRepository(authBox),
         ),
         // Provider: repositorio de perfis local, usado pelos models sem dependencias externas.
         Provider<UserRepository>(
-          create: (_) => LocalUserRepository(),
+          create: (_) => LocalUserRepository(profilesBox),
         ),
         // Provider: repositorio de tarefas em memoria; centraliza acesso e mantem estado por usuario.
         Provider<TaskRepository>(
-          create: (_) => LocalTaskRepository(),
+          create: (_) => LocalTaskRepository(tasksBox),
         ),
         // ChangeNotifierProvider: AuthModel muda com login/logout; precisa notificar a UI quando status muda.
         // Depende dos repositorios acima para executar operacoes sem acoplamento direto ao armazenamento.

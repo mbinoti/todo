@@ -1,12 +1,19 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:hive/hive.dart';
+
 import 'package:app_todo/features/tasks/models/user_preferences.dart';
 import 'package:app_todo/features/tasks/models/user_profile.dart';
 import 'package:app_todo/features/tasks/repository/user_repository.dart';
 
-/// In-memory user profile store for local-only data.
+/// Local user profile store backed by Hive for persistence.
 class LocalUserRepository implements UserRepository {
+  LocalUserRepository(this._box) {
+    _loadFromStorage();
+  }
+
+  final Box<dynamic> _box;
   final Map<String, UserProfile> _profiles = {};
   final Map<String, StreamController<UserProfile?>> _controllers = {};
 
@@ -33,6 +40,7 @@ class LocalUserRepository implements UserRepository {
   @override
   Future<UserProfile> createProfile(UserProfile profile) async {
     _profiles[profile.uid] = profile;
+    await _persistProfile(profile.uid);
     _emitProfile(profile.uid);
     return profile;
   }
@@ -90,6 +98,7 @@ class LocalUserRepository implements UserRepository {
           updatedAt: now,
         );
     _profiles[uid] = updated;
+    await _persistProfile(uid);
     _emitProfile(uid);
   }
 
@@ -115,6 +124,7 @@ class LocalUserRepository implements UserRepository {
           updatedAt: now,
         );
     _profiles[uid] = updated;
+    await _persistProfile(uid);
     _emitProfile(uid);
   }
 
@@ -126,11 +136,50 @@ class LocalUserRepository implements UserRepository {
     return file.path;
   }
 
+  void _loadFromStorage() {
+    for (final key in _box.keys) {
+      if (key is! String || key.isEmpty) {
+        continue;
+      }
+      final raw = _box.get(key);
+      if (raw is Map) {
+        final data = Map<String, Object?>.from(raw);
+        _profiles[key] = UserProfile.fromFirestore(key, data);
+      }
+    }
+  }
+
+  Future<void> _persistProfile(String uid) {
+    final profile = _profiles[uid];
+    if (profile == null) {
+      return Future.value();
+    }
+    final data = _encodeMap(profile.toFirestore());
+    return _box.put(uid, data);
+  }
+
   void _emitProfile(String uid) {
     final controller = _controllers[uid];
     if (controller == null || controller.isClosed) {
       return;
     }
     controller.add(_profiles[uid]);
+  }
+
+  Map<String, Object?> _encodeMap(Map<String, Object?> data) {
+    return data.map((key, value) => MapEntry(key, _encodeValue(value)));
+  }
+
+  Object? _encodeValue(Object? value) {
+    if (value is DateTime) {
+      return value.toIso8601String();
+    }
+    if (value is Map) {
+      return value.map((key, nested) => MapEntry(key, _encodeValue(nested)));
+    }
+    if (value is List) {
+      return value.map(_encodeValue).toList(growable: false);
+    }
+    return value;
   }
 }
