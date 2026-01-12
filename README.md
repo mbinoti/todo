@@ -10,5 +10,4 @@ App de tarefas com autenticacao local e armazenamento offline.
 - Perfil do usuario com edicao de nome/email e foto (selecionada no dispositivo).
 - Preferencias basicas (notificacoes e idioma) e interface adaptada para iOS/Android.
 
-## Observacoes
-- "Esqueci minha senha" e "Modo escuro" aparecem como em desenvolvimento.
+
