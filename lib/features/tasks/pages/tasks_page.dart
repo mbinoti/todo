@@ -313,6 +313,7 @@ class _TasksBody extends StatelessWidget {
     }
 
     return Stack(
+      fit: StackFit.expand,
       children: [
         list,
         Positioned(
