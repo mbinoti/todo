@@ -76,6 +76,11 @@ class UserProfile {
       return null;
     }
 
+    final rawPreferences = data['preferences'];
+    final preferencesData = rawPreferences is Map
+        ? Map<String, Object?>.from(rawPreferences)
+        : null;
+
     return UserProfile(
       uid: uid,
       name: data['name'] as String? ?? '',
@@ -83,9 +88,7 @@ class UserProfile {
       photoUrl: data['photoUrl'] as String?,
       createdAt: parseDate(data['createdAt']) ?? DateTime.now(),
       updatedAt: parseDate(data['updatedAt']) ?? DateTime.now(),
-      preferences: UserPreferences.fromFirestore(
-        data['preferences'] as Map<String, Object?>?,
-      ),
+      preferences: UserPreferences.fromFirestore(preferencesData),
     );
   }
 }

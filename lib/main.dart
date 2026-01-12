@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 
 import 'package:app_todo/app/app.dart';
@@ -16,6 +17,7 @@ import 'package:app_todo/features/tasks/view_model/tasks_model.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Hive.initFlutter();
+  final appDir = await getApplicationDocumentsDirectory();
   final authBox = await Hive.openBox('local_auth');
   final profilesBox = await Hive.openBox('local_profiles');
   final tasksBox = await Hive.openBox('local_tasks');
@@ -24,6 +26,7 @@ Future<void> main() async {
       authBox: authBox,
       profilesBox: profilesBox,
       tasksBox: tasksBox,
+      appDocumentsPath: appDir.path,
     ),
   );
 }
@@ -34,11 +37,13 @@ class AppBootstrap extends StatelessWidget {
     required this.authBox,
     required this.profilesBox,
     required this.tasksBox,
+    required this.appDocumentsPath,
   });
 
   final Box<dynamic> authBox;
   final Box<dynamic> profilesBox;
   final Box<dynamic> tasksBox;
+  final String appDocumentsPath;
 
   @override
   Widget build(BuildContext context) {
@@ -50,7 +55,7 @@ class AppBootstrap extends StatelessWidget {
         ),
         // Provider: repositorio de perfis local, usado pelos models sem dependencias externas.
         Provider<UserRepository>(
-          create: (_) => LocalUserRepository(profilesBox),
+          create: (_) => LocalUserRepository(profilesBox, appDocumentsPath),
         ),
         // Provider: repositorio de tarefas em memoria; centraliza acesso e mantem estado por usuario.
         Provider<TaskRepository>(

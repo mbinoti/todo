@@ -9,11 +9,12 @@ import 'package:app_todo/features/tasks/repository/user_repository.dart';
 
 /// Local user profile store backed by Hive for persistence.
 class LocalUserRepository implements UserRepository {
-  LocalUserRepository(this._box) {
+  LocalUserRepository(this._box, this._appDocumentsPath) {
     _loadFromStorage();
   }
 
   final Box<dynamic> _box;
+  final String _appDocumentsPath;
   final Map<String, UserProfile> _profiles = {};
   final Map<String, StreamController<UserProfile?>> _controllers = {};
 
@@ -133,7 +134,16 @@ class LocalUserRepository implements UserRepository {
     required String uid,
     required File file,
   }) async {
-    return file.path;
+    final profileDir = Directory(_profileDirPath(uid));
+    await profileDir.create(recursive: true);
+    final extension = _extractExtension(file.path);
+    final targetPath =
+        '${profileDir.path}${Platform.pathSeparator}avatar$extension';
+    if (file.path == targetPath) {
+      return targetPath;
+    }
+    final saved = await file.copy(targetPath);
+    return saved.path;
   }
 
   void _loadFromStorage() {
@@ -144,7 +154,13 @@ class LocalUserRepository implements UserRepository {
       final raw = _box.get(key);
       if (raw is Map) {
         final data = Map<String, Object?>.from(raw);
-        _profiles[key] = UserProfile.fromFirestore(key, data);
+        var profile = UserProfile.fromFirestore(key, data);
+        final resolvedPhotoUrl = _resolvePhotoUrl(key, profile.photoUrl);
+        if (resolvedPhotoUrl != profile.photoUrl) {
+          profile = profile.copyWith(photoUrl: resolvedPhotoUrl);
+          unawaited(_persistProfile(key));
+        }
+        _profiles[key] = profile;
       }
     }
   }
@@ -181,5 +197,69 @@ class LocalUserRepository implements UserRepository {
       return value.map(_encodeValue).toList(growable: false);
     }
     return value;
+  }
+
+  String _profileDirPath(String uid) {
+    return '$_appDocumentsPath${Platform.pathSeparator}profiles'
+        '${Platform.pathSeparator}$uid';
+  }
+
+  String? _resolvePhotoUrl(String uid, String? photoUrl) {
+    final trimmed = photoUrl?.trim();
+    if (trimmed != null && trimmed.isNotEmpty) {
+      final uri = Uri.tryParse(trimmed);
+      if (uri != null && (uri.scheme == 'http' || uri.scheme == 'https')) {
+        return trimmed;
+      }
+      final file = uri != null && uri.scheme == 'file'
+          ? File.fromUri(uri)
+          : File(trimmed);
+      if (file.existsSync()) {
+        final profileDir = _profileDirPath(uid);
+        if (!file.path.startsWith(profileDir)) {
+          final extension = _extractExtension(file.path);
+          final targetPath =
+              '${profileDir}${Platform.pathSeparator}avatar$extension';
+          try {
+            Directory(profileDir).createSync(recursive: true);
+            final saved = file.copySync(targetPath);
+            return saved.path;
+          } catch (_) {
+            return file.path;
+          }
+        }
+        return file.path;
+      }
+    }
+    final avatar = _findAvatarFile(uid);
+    return avatar?.path;
+  }
+
+  File? _findAvatarFile(String uid) {
+    final dir = Directory(_profileDirPath(uid));
+    if (!dir.existsSync()) {
+      return null;
+    }
+    for (final entry in dir.listSync()) {
+      if (entry is! File) {
+        continue;
+      }
+      final name = entry.uri.pathSegments.isNotEmpty
+          ? entry.uri.pathSegments.last
+          : '';
+      if (name.startsWith('avatar')) {
+        return entry;
+      }
+    }
+    return null;
+  }
+
+  String _extractExtension(String path) {
+    final base = path.split(RegExp(r'[\\/]+')).last;
+    final dotIndex = base.lastIndexOf('.');
+    if (dotIndex == -1) {
+      return '';
+    }
+    return base.substring(dotIndex);
   }
 }
