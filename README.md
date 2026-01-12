@@ -2,7 +2,7 @@
 
 App de tarefas com autenticacao local e armazenamento offline.
 
-<img src="docs/img1.gif" alt="Demonstração" width="400">
+<img src="docs/img1.gif" alt="Demonstração" width="300">
 
 ## Funcionalidades
 - Autenticacao local com cadastro, login/logout, sessao persistida e verificacao de email.
