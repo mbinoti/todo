@@ -1,4 +1,4 @@
-# app_todo
+# todo
 
 App de tarefas com autenticacao local e armazenamento offline.
 
